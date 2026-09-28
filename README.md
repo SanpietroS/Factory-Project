@@ -1,5 +1,3 @@
-# Factory-Project
-
 # Factory Production Efficiency Analysis
 
 ## Project Description
