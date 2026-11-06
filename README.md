@@ -2,88 +2,134 @@
 
 ## Problem Statement
 
-This project identifies observed machine failures from sensor readings. The goal is to detect failures while limiting unnecessary maintenance alerts. Missed failures may lead to downtime, repairs, and safety problems; false alerts may cause unnecessary inspections.
+This project uses machine sensor readings to identify failures. The goal is to detect failures while limiting unnecessary maintenance alerts.
 
-The analysis compares Logistic Regression, an MVP Random Forest, and an improved Random Forest. The dataset labels describe failure at the recorded observation, so this project does not establish how far ahead failures can be predicted.
+Missed failures may lead to downtime, repairs, or safety problems. False alerts may cause unnecessary inspections.
+
+The project compares Logistic Regression, an MVP Random Forest, and an improved Random Forest.
+
+The dataset describes failure at the recorded observation. It does not establish how far ahead a failure can be predicted.
 
 ## Data Description
 
-The [AI4I 2020 Predictive Maintenance Dataset](https://doi.org/10.24432/C5HS5C) is a synthetic dataset from the UCI Machine Learning Repository, shared under [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/).
+The project uses the synthetic AI4I 2020 Predictive Maintenance Dataset from the UCI Machine Learning Repository.
 
-- 10,000 observations, including 339 failures and 9,661 nonfailures.
-- Failure rate: 3.39%.
-- Inputs: product Type, air temperature, process temperature, rotational speed, torque, and tool wear.
-- Target: `Machine failure`.
+- **Observations:** 10,000
+- **Failures:** 339
+- **Nonfailures:** 9,661
+- **Failure rate:** 3.39%
+- **Target:** Machine failure
+- **Inputs:** Product type, air temperature, process temperature, rotational speed, torque, and tool wear
 
-### Cleaning Decisions
+**Source:** [AI4I 2020 Predictive Maintenance Dataset](https://doi.org/10.24432/C5HS5C)
 
-The source has no missing values or duplicate rows, so no imputation or row removal is needed. Column whitespace is trimmed, and duplicate source rows are checked before removing identifiers.
+**License:** [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/)
 
-UDI and Product ID are excluded because they identify records. TWF, HDF, PWF, OSF, and RNF are excluded from model inputs because they describe failure outcomes and could reveal the answer. Valid extreme sensor readings are kept because unusual values may help identify failures. Product Type is encoded with H as the reference and indicators for L and M.
+### Data Cleaning
+
+I checked missing values, duplicate source rows, and data types. The source has no missing values or duplicate rows, so no imputation or row removal was needed.
+
+I removed UDI and Product ID because they identify records. I excluded TWF, HDF, PWF, OSF, and RNF from the predictors because they describe failure outcomes and could reveal the answer.
+
+Product Type was converted into numeric indicator columns. Valid extreme sensor readings were kept because unusual conditions may help identify failures.
 
 ## Methodology
 
 | Stage | Model | Purpose |
 |---|---|---|
-| Reference | Logistic Regression with training-fitted scaling and balanced class weights | Provide a simple linear comparison |
-| MVP baseline | Random Forest with 100 trees and balanced class weights | Capture nonlinear patterns using the original seven inputs |
-| Improved model | Random Forest with two added features and training-only tuning | Improve the precision/recall balance |
+| Reference | Logistic Regression | Provide a simple linear comparison |
+| MVP baseline | Random Forest with 100 trees | Capture nonlinear patterns using the original inputs |
+| Improved model | Random Forest with added features and tuned settings | Improve the balance between failure detection and false alerts |
 
-The improvement adds temperature difference (process minus air temperature) and a power proxy (torque multiplied by rpm, not watts). The earlier high-tool-wear flag was removed because its cutoff used the full dataset.
+All models use balanced class weights.
 
-All models use the same 80/20 stratified split with seed 42: 8,000 training observations and 2,000 test observations, including 68 test failures. Scaling and tuning use training data only. The prediction threshold is 0.5 for every model.
+The data is divided into 80% training and 20% testing using stratification and a random seed of 42. This creates 8,000 training observations and 2,000 test observations, including 68 test failures.
 
-The improved forest tests eight configurations across three shuffled stratified training folds. F1 selects the number of trees, maximum depth, and minimum leaf size. The verified run selected 300 trees, unlimited depth, and a minimum leaf size of 1, with mean training cross-validation F1 of 0.806. Feature engineering and tuning change together, so their separate effects have not been established.
+All models use the same test observations. Logistic Regression scaling is fitted only on training data.
 
-Accuracy is reported alongside precision, recall, F1, and ROC-AUC. Failures are rare: always predicting no failure would achieve 96.61% accuracy and detect none of the failures. F1, precision, and recall therefore matter more than accuracy alone.
+### Improved Model
+
+The improved Random Forest adds two features:
+
+| Feature | Calculation | Reason |
+|---|---|---|
+| Temperature difference | Process temperature minus air temperature | Represent the temperature gap related to heat dissipation |
+| Power proxy | Torque multiplied by rotational speed | Combine information about load and speed |
+
+The power proxy uses torque times rpm and is not measured in watts.
+
+The improved model tests eight configurations using three stratified cross-validation folds within the training data. F1 selects the settings.
+
+The verified run selected 300 trees, unlimited maximum depth, and a minimum leaf size of 1. Mean training cross-validation F1 was 0.806.
+
+Feature engineering and tuning were changed together, so their separate contributions have not been measured.
+
+### Evaluation
+
+The comparison includes accuracy, precision, recall, F1, and ROC-AUC.
+
+Failures are rare. Always predicting no failure would achieve 96.61% accuracy while missing every failure. Precision, recall, and F1 therefore provide important information beyond accuracy.
+
+All models use the default 0.5 probability threshold.
 
 ## Results
 
-| Model | Accuracy | Precision | Recall | F1 | ROC-AUC | Missed failures | False alerts |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Logistic Regression | 0.825 | 0.142 | 0.824 | 0.242 | 0.907 | 12 | 339 |
-| MVP Random Forest | 0.981 | 0.734 | 0.691 | 0.712 | 0.960 | 21 | 17 |
-| Improved Random Forest | 0.991 | 0.917 | 0.809 | 0.859 | 0.970 | 13 | 5 |
+| Model | Accuracy | Precision | Recall | F1 | ROC-AUC |
+|---|---:|---:|---:|---:|---:|
+| Logistic Regression | 0.825 | 0.142 | 0.824 | 0.242 | 0.907 |
+| MVP Random Forest | 0.981 | 0.734 | 0.691 | 0.712 | 0.960 |
+| Improved Random Forest | 0.991 | 0.917 | 0.809 | 0.859 | 0.970 |
 
-Logistic Regression detects the most failures but creates a large false-alert workload. The MVP reduces false alerts but misses more failures.
+Logistic Regression detects 56 of the 68 failures but produces 339 false alerts. Its high recall comes with a large alert workload.
 
-The improved forest provides the strongest balance. It detects 55 of 68 failures and produces five false alerts. Compared with the MVP, it detects eight additional failures and avoids 12 false alerts. Compared with Logistic Regression, it misses one additional failure while avoiding 334 false alerts.
+The MVP Random Forest reduces false alerts to 17 but misses 21 failures.
 
-Its remaining 13 missed failures show that it is not a complete maintenance decision system. Errors could affect downtime, inspections, repair costs, and safety, but actual costs and savings are not measured here.
+The improved Random Forest detects 55 failures, misses 13, and produces five false alerts. Compared with the MVP, it detects eight additional failures while avoiding 12 false alerts.
 
-Tool wear, rotational speed, and torque have the highest impurity importance, followed by the power proxy and temperature difference. These rankings describe this fitted model; they do not establish causation.
+It has the highest F1 score at 0.859 and provides the strongest precision/recall balance on this test set.
 
-### Notebook Figures
+The remaining missed failures still matter. They could lead to downtime or repairs, while false alerts could trigger unnecessary inspections. These are possible consequences; the dataset does not measure actual maintenance costs or savings.
 
-The figures are explained in the notebook and linked here without embedding graphs:
+Tool wear, rotational speed, and torque have the highest impurity importance in the improved model. These rankings describe how the fitted model uses its inputs and do not prove cause and effect.
 
-- [Class distribution](Factory_Project_Submission.ipynb#3.-Explore-the-Data): shows why accuracy alone is insufficient.
-- [Sensor boxplots and correlation heatmap](Factory_Project_Submission.ipynb#Sensor-Readings-and-Machine-Failure): compare sensor patterns and associations; failure-type flags shown in the exploratory heatmap are excluded from training.
-- [Model comparison](Factory_Project_Submission.ipynb#Model-Comparison): compares the models on the same metrics.
-- [Refined confusion matrix](Factory_Project_Submission.ipynb#Refined-Confusion-Matrix): shows 13 missed failures and five false alerts.
-- [Refined feature importance](Factory_Project_Submission.ipynb#Refined-Feature-Importance): shows the relative importance of all nine improved-model inputs.
+### Notebook Charts
+
+The notebook contains the charts and their explanations:
+
+- [Class distribution](Factory_Project_Submission.ipynb#3.-Explore-the-Data)
+- [Sensor readings and correlations](Factory_Project_Submission.ipynb#Sensor-Readings-and-Machine-Failure)
+- [Model comparison](Factory_Project_Submission.ipynb#Model-Comparison)
+- [Refined confusion matrix](Factory_Project_Submission.ipynb#Refined-Confusion-Matrix)
+- [Refined feature importance](Factory_Project_Submission.ipynb#Refined-Feature-Importance)
 
 ## Limitations
 
-The dataset is synthetic, only 68 failures occur in the test set, and the random split may share time-related patterns across partitions. The holdout has also been examined during development. The results are a development benchmark rather than a fresh final test or evidence of future operational performance.
+The dataset is synthetic, so the results may not transfer to real factory equipment. Only 68 failures appear in the test set, which limits certainty.
 
-The analysis does not measure uncertainty, maintenance costs, or a future prediction horizon. Feature and tuning changes were combined, and the default alert threshold was not selected using real costs. Impurity importance can favor continuous or correlated inputs.
+The random split may place similar time-related patterns in both groups. The test set has also been examined during development, so these results are a development comparison rather than a fresh final evaluation.
 
-Future work includes time-based and external validation, uncertainty estimates, separate feature/tuning experiments, and threshold selection using realistic maintenance costs. These are extensions of the current analysis.
+Feature engineering and tuning were changed together. The analysis does not establish their separate effects, estimate uncertainty, or select an alert threshold using real maintenance costs.
+
+Future work includes time-based and external validation, threshold comparisons, uncertainty estimates, and testing on real machine histories.
 
 ## How to Run
 
-1. Download `Factory_Project_Submission.ipynb` and the CSV from the UCI dataset source above.
+1. Download `Factory_Project_Submission.ipynb` and the CSV from the UCI source linked above.
+
 2. Use Python 3.12. The verified analysis used these scientific package versions:
 
    ```bash
    python -m pip install numpy==2.5.4 pandas==3.1.0 scipy==1.18.1 scikit-learn==1.9.1 matplotlib==3.11.2 seaborn==0.13.2 notebook ipykernel
    ```
 
-3. In the notebook's **1. Load the Dataset** section, change the CSV path to where the file is saved on your computer. The supplied notebook uses the author's Windows Downloads path; it does not download the data automatically.
-4. Start Jupyter with `python -m jupyter notebook`, open the notebook in the environment where the packages were installed, and select **Restart Kernel and Run All**.
+3. Open the notebook and update the CSV path under **1. Load the Dataset** to match where the file is saved on your computer.
+
+4. Select **Restart Kernel and Run All**.
+
 5. Review the results and save the executed notebook.
 
-All analysis code is inside the notebook. Running it creates `images/` and `results/` folders containing the figures, model scores, cross-validation results, and feature importance. No separate Python source file or API key is required.
+All analysis code is inside the notebook. Running it creates `images` and `results` folders containing the charts, model scores, cross-validation results, and feature importance.
 
-The reported values come from the verified environment. Other library versions may change the selected parameters and results; any written interpretation should match the actual output of the submitted notebook.
+This version uses a local CSV path and does not download the dataset automatically.
+
+The reported numbers describe the verified run. If different package versions change the results, update the written explanations to match the actual notebook output.
